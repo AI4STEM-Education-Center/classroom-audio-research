@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "classroom-audio-research"
+version = "0.1.0"
+description = "Classroom audio pipeline research: TSE, ASR, speaker verification for children's speech"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.24",
+    "soundfile>=0.12",
+    "librosa>=0.10",
+    "jiwer>=3.0",          # WER computation
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "ruff",
+]
+ml = [
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "transformers>=4.36",
+    "speechbrain>=1.0",
+    "einops>=0.6",
+]
+sedicow = [
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "transformers>=4.36",
+    "pyannote.audio>=3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

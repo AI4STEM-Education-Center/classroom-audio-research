@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Models (too large for git)
+models/
+*.ckpt
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+
+# Audio files (large, use git-lfs or download scripts)
+# Keep test fixtures small — only commit short clips
+tests/fixtures/**/*.wav
+tests/fixtures/**/*.webm
+tests/fixtures/**/*.mp3
+tests/fixtures/**/*.flac
+!tests/fixtures/**/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Misc
+*.log
+.env
