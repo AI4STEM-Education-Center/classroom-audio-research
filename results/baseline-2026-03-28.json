@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "date": "2026-03-28",
+    "tse_model": "meanflow-tse (single-step flow matching)",
+    "asr_model": "whisper-base.en",
+    "speaker_verifier": "cam++ (512-dim ONNX)",
+    "hardware": "CPU (macOS ARM64)",
+    "source": "ArguAgent pipeline test — metrics only, no student audio"
+  },
+  "summary": {
+    "enrolled_speakers": 23,
+    "tested_speakers": 13,
+    "total_chunks": 57,
+    "successful": 30,
+    "failed": 27,
+    "success_rate": 0.526,
+    "avg_speaker_similarity": 0.160,
+    "min_speaker_similarity": 0.055,
+    "max_speaker_similarity": 0.393,
+    "avg_latency_ms": 49600,
+    "failure_modes": {
+      "http_500": 10,
+      "empty_transcription": 12,
+      "low_energy_skip": 5
+    }
+  },
+  "interpretation": {
+    "secs_scores": "Average SECS of 0.160 is well below the 0.25 threshold used in production. Most same-speaker pairs score < 0.2, suggesting either enrollment quality issues (short/noisy enrollment clips), age-dependent embedding space differences (child voices vs adult-trained models), or insufficient segment length for robust embedding extraction.",
+    "target_thresholds": {
+      "same_speaker_confident": "> 0.5 SECS",
+      "same_speaker_likely": "> 0.3 SECS",
+      "different_speaker": "< 0.15 SECS"
+    },
+    "failure_analysis": "27/57 failures (47%) — primarily HTTP 500 from TSE service under load and empty transcriptions from energy gate (near-silent extracted audio). The high empty-transcription rate suggests MeanFlow is sometimes extracting the wrong speaker or suppressing all speech.",
+    "gpu_comparison": {
+      "cpu_macos_arm64": "2.6s per 7s audio segment",
+      "cpu_graviton_arm64": "9.8s per 5.5s audio segment",
+      "gpu_t4": "0.24s per 5.5s audio segment",
+      "note": "GPU is 10-40x faster — required for real-time operation"
+    }
+  },
+  "per_speaker_summary": [
+    {"speaker_id": "S01", "chunks_tested": 5, "successful": 3, "avg_secs": 0.164, "avg_latency_ms": 50400},
+    {"speaker_id": "S02", "chunks_tested": 5, "successful": 2, "avg_secs": null, "avg_latency_ms": 47400, "note": "HTTP 500 errors"},
+    {"speaker_id": "S03", "chunks_tested": 5, "successful": 3, "avg_secs": 0.121, "avg_latency_ms": 49200},
+    {"speaker_id": "S04", "chunks_tested": 5, "successful": 3, "avg_secs": 0.078, "avg_latency_ms": 49200},
+    {"speaker_id": "S05", "chunks_tested": 5, "successful": 1, "avg_secs": 0.066, "avg_latency_ms": 49700},
+    {"speaker_id": "S06", "chunks_tested": 5, "successful": 3, "avg_secs": 0.161, "avg_latency_ms": 48100},
+    {"speaker_id": "S07", "chunks_tested": 5, "successful": 3, "avg_secs": 0.393, "avg_latency_ms": 49800},
+    {"speaker_id": "S08", "chunks_tested": 3, "successful": 2, "avg_secs": 0.182, "avg_latency_ms": 50100},
+    {"speaker_id": "S09", "chunks_tested": 4, "successful": 2, "avg_secs": 0.128, "avg_latency_ms": 49400},
+    {"speaker_id": "S10", "chunks_tested": 5, "successful": 3, "avg_secs": 0.205, "avg_latency_ms": 51200},
+    {"speaker_id": "S11", "chunks_tested": 3, "successful": 1, "avg_secs": 0.098, "avg_latency_ms": 48700},
+    {"speaker_id": "S12", "chunks_tested": 4, "successful": 2, "avg_secs": 0.144, "avg_latency_ms": 49500},
+    {"speaker_id": "S13", "chunks_tested": 2, "successful": 2, "avg_secs": 0.156, "avg_latency_ms": 50800}
+  ]
+}
