@@ -1,149 +1,147 @@
 # Classroom Audio Research
 
-Research pipeline for target-speaker processing, ASR, and speaker verification in classroom environments — focused on children's speech in educational settings.
+Research and evaluation codebase for target-speaker processing, ASR, and speaker verification in classroom environments.
 
-**Team:** Jennifer Kleiman (PM/design), Arne Bewersdorff (hardware/architecture), AI@UGA undergraduates
-**Parent project:** [GENIUS ArguAgent](https://github.com/AI4STEM-Education-Center/GENIUS_ArgueAgent)
+**Research companion to [ArguAgent](https://arguagent.ai4genius.org)** — an AI co-teacher for small-group math discussions that needs to know what each student said, attributed correctly, in near-real-time.
 
----
+## The Problem
 
-## What This Repo Is For
+A classroom with 8 students in small groups is noisy. Each student wears a headset mic, but neighboring voices still bleed through. We need to:
 
-We're building an AI co-teacher that joins small-group math discussions. For the AI to say anything useful, it needs to know what each student said — attributed to the right student, in near-real-time, in a noisy classroom.
+1. **Detect** when the target student is speaking (VAD + Speaker Verification)
+2. **Extract** their voice from the mix (Target Speaker Extraction)
+3. **Transcribe** what they said (ASR)
+4. **Verify** the transcript belongs to the right student (SECS post-filter)
 
-This repo contains the **research and evaluation code** for the audio pipeline. It's separate from the main ArguAgent web app so that:
-- You can work in Python without needing a Next.js/TypeScript environment
-- We have a dedicated test suite with audio fixtures and ground-truth transcripts
-- Multiple people can work on independent components in parallel
+## Architecture
 
-**Read the full context:** See [`docs/KICKOFF.md`](docs/KICKOFF.md) for the project kickoff document with problem statement, architecture, what we've tested, and the parallel testing plan.
-
----
+```
+Headset Mic (48kHz WebM/Opus)
+    |
+Audio Conversion (-> 16kHz mono WAV)
+    |
+Target Speaker Extraction (MeanFlow-TSE)
+    |-- TPredicter: mixture + enrollment -> mixing ratio
+    |-- UDiT: single-step diffusion -> clean spectrogram
+    |-- SECS: CAM++ speaker similarity score
+    |
+Energy Gate (RMS < 0.005 -> skip)
+    |
+ASR (Whisper base.en)
+    |-- Transcription
+    |-- Hallucination detection (repetition, length)
+    |
+{text, confidence, speakerSimilarity}
+```
 
 ## Quick Start
 
 ```bash
-# Clone
-git clone https://github.com/AI4STEM-Education-Center/classroom-audio-research.git
-cd classroom-audio-research
-
-# Set up Python environment
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-
-# Install dependencies
+# Install (base deps only — fast)
 pip install -e ".[dev]"
 
-# Run tests
-pytest
+# Generate synthetic test audio
+python scripts/generate_test_audio.py
 
-# Download models (optional — needed for Track A/B/C)
+# Run tests (mock mode — no model downloads needed)
+pytest tests/ -v
+
+# Install ML dependencies (slower — downloads PyTorch, Whisper, etc.)
+pip install -e ".[all]"
+
+# Download model checkpoints (~2GB)
 python scripts/download_models.py
+
+# Start the service
+TSE_MODEL=meanflow ASR_MODEL=whisper uvicorn src.main:app --port 8100
+
+# Health check
+curl http://localhost:8100/health
+
+# Process audio
+curl -X POST http://localhost:8100/extract-and-transcribe \
+  -F "audio=@tests/fixtures/mixed_speech.wav" \
+  -F "referenceAudio=@tests/fixtures/reference.wav"
 ```
 
----
+## Evaluation Datasets
+
+```bash
+# Download WHAM! noise (~4GB) for realistic mixing
+python scripts/download_wham.py
+
+# Create test mixtures at various SNR levels
+python scripts/mix_audio.py \
+  --target clean_speech.wav \
+  --wham --snr -5 0 5 10 15 \
+  --output-dir data/mixtures/
+```
+
+## Current Baseline (March 2026)
+
+| Metric | Value | Target |
+|--------|-------|--------|
+| Success rate | 53% | >90% |
+| Speaker similarity (SECS) | 0.160 avg | >0.5 |
+| ASR WER | unmeasured | <15% |
+| GPU latency (T4) | 0.24s / 5.5s audio | Meets target |
+
+See [docs/CURRENT_RESULTS.md](docs/CURRENT_RESULTS.md) for full analysis.
+
+## Research Tracks
+
+| Track | Focus | Status |
+|-------|-------|--------|
+| A | SE-DiCoW end-to-end evaluation | Not started |
+| B | ASR model comparison (Whisper variants, Canary) | Whisper base.en baseline |
+| C | Speaker verification for children's voices | CAM++ integrated, scores too low |
+| D | Public test dataset creation (WHAM!, VoxCeleb) | Scripts ready |
+| E | Multi-channel processing (cross-channel gating, GSS) | Not started |
+
+See [docs/KICKOFF.md](docs/KICKOFF.md) for details.
 
 ## Project Structure
 
 ```
-classroom-audio-research/
-├── docs/                     # Project docs, kickoff, audio primer
-│   ├── KICKOFF.md            # Start here — project context + testing plan
-│   └── results/              # Put your evaluation results here
-├── src/
-│   └── evaluation/           # Evaluation harness code
-│       ├── metrics.py        # WER, SDR, EER computation
-│       └── audio_utils.py    # Audio loading, mixing, resampling
-├── scripts/
-│   ├── download_models.py    # Download pretrained models
-│   └── mix_audio.py          # Create overlap test data
-├── tests/
-│   └── fixtures/             # Test audio files + ground truth transcripts
-├── models/                   # Downloaded model checkpoints (gitignored)
-├── pyproject.toml
-└── README.md
+src/
+|-- main.py                    # FastAPI application
+|-- config.py                  # Settings (env vars)
+|-- api/                       # HTTP endpoints
+|-- tse/                       # Target Speaker Extraction
+|   |-- meanflow.py            # MeanFlow-TSE (single-step flow matching)
+|   |-- campplus_verifier.py   # CAM++ SECS post-filter
+|   |-- vendor/meanflow_tse/   # Vendored model code
+|-- asr/                       # Automatic Speech Recognition
+|   |-- whisper_asr.py         # Whisper + hallucination detection
+|-- embeddings/                # Speaker embeddings
+|   |-- ecapa.py               # ECAPA-TDNN via SpeechBrain
+|-- evaluation/                # Metrics (WER, SDR, SI-SNR, EER)
+
+scripts/
+|-- download_models.py         # Fetch MeanFlow, CAM++, ECAPA-TDNN, Whisper
+|-- download_wham.py           # Fetch WHAM! noise dataset
+|-- mix_audio.py               # Create SNR-controlled audio mixtures
+|-- generate_test_audio.py     # Synthetic test fixtures
+
+results/
+|-- baseline-2026-03-28.json   # Production pipeline metrics
 ```
 
----
+## Documentation
 
-## Research Tracks
+- **[TECHNICAL_PRIMER.md](docs/TECHNICAL_PRIMER.md)** — How the pipeline works, key algorithms, papers
+- **[CURRENT_RESULTS.md](docs/CURRENT_RESULTS.md)** — Baseline numbers and what they mean
+- **[KICKOFF.md](docs/KICKOFF.md)** — Research tracks and getting started
 
-See the [Parallel Testing Plan](docs/KICKOFF.md#parallel-testing-plan-aiuga-undergrad-team) for full details.
+## Team
 
-| Track | Focus | People |
-|-------|-------|--------|
-| **A** | SE-DiCoW evaluation (top priority) | 2 |
-| **B** | ASR model comparison | 1-2 |
-| **C** | Speaker verification benchmarking | 1 |
-| **D** | Test data creation | Everyone |
+- **Jennifer Kleiman** — PM, system design ([ArguAgent](https://arguagent.ai4genius.org))
+- **Arne Bewersdorff** — Hardware architecture, audio engineering
+- **AI@UGa undergraduates** — Research
 
-### Getting Started
+## Key References
 
-1. Read [`docs/KICKOFF.md`](docs/KICKOFF.md) — the full project context
-2. Pick a track
-3. Set up your Python environment (see Quick Start above)
-4. Start with Track D (record yourself!) while models download
-
----
-
-## Recording Test Audio
-
-Everyone should contribute test recordings. See Track D in the kickoff doc, but briefly:
-
-1. **Enrollment clip** (10s): Read a paragraph aloud in a quiet room
-2. **Clean speech clips** (5-10s each): Just you talking, record the ground-truth transcript
-3. **Overlap clips** (5-10s each): You talking while someone else talks nearby
-
-Put recordings in `tests/fixtures/` with a naming convention:
-```
-tests/fixtures/
-├── speaker1/
-│   ├── enrollment.wav
-│   ├── clean_01.wav
-│   ├── clean_01.txt          # ground truth transcript
-│   ├── overlap_01.wav
-│   └── overlap_01.txt
-├── speaker2/
-│   └── ...
-└── mixed/                    # Programmatically mixed audio
-    └── ...
-```
-
-Use `scripts/mix_audio.py` to create controlled overlap test data:
-```bash
-python scripts/mix_audio.py --target speaker1/clean_01.wav --interference speaker2/clean_01.wav --sir 20
-```
-
----
-
-## Reporting Results
-
-When you have evaluation results, create a markdown file in `docs/results/`:
-
-```markdown
-# [Model Name] Evaluation — [Your Name], [Date]
-
-## Setup
-- Model: ...
-- Hardware: ...
-- Test audio: ...
-
-## Results
-| Metric | Clean | Noisy (20dB SIR) | Noisy (10dB SIR) |
-|--------|-------|-------------------|-------------------|
-| WER    |       |                   |                   |
-
-## Notes
-What worked, what didn't, surprises, next steps.
-```
-
-Negative results are valuable. "We tried X and it failed because Y" saves everyone time.
-
----
-
-## Contributing
-
-- Create a branch for your work: `git checkout -b track-a/your-name`
-- Commit regularly, push daily
-- Ask questions — nobody has done all of this before
-- Write tests before writing pipeline code
+- [MeanFlow-TSE](https://arxiv.org/abs/2512.18572) — Single-step flow matching for speaker extraction
+- [CAM++](https://arxiv.org/abs/2303.00332) — Context-aware speaker verification
+- [WHAM!](https://wham.whisper.ai/) — Noise dataset for speech separation
+- [Khan et al. (EDM 2025)](https://arxiv.org/abs/2505.10879) — Classroom VAD evaluation
