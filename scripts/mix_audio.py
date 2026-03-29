@@ -1,45 +1,134 @@
 #!/usr/bin/env python3
-"""Create overlap test audio by mixing two recordings at a given SIR.
+"""Mix audio to simulate classroom conditions.
+
+Creates synthetic mixtures for evaluating TSE performance under controlled
+conditions. Supports:
+  - Clean speech + WHAM! noise at varying SNR
+  - Two-speaker overlap at varying SIR (signal-to-interference ratio)
+  - Positive pairs (same speaker enrollment + test)
+  - Negative pairs (different speaker enrollment + test)
 
 Usage:
-    python scripts/mix_audio.py --target speaker1/clean_01.wav --interference speaker2/clean_01.wav --sir 20
-    python scripts/mix_audio.py --target speaker1/clean_01.wav --interference speaker2/clean_01.wav --sir 0 10 20 40
+    # Mix two WAV files at 5dB SNR
+    python scripts/mix_audio.py --target speaker1.wav --interference noise.wav --snr 5 --output mix.wav
 
-This simulates classroom audio conditions:
-    SIR 20-40 dB: Headset bleed (target speaker is much louder, neighbor faint)
-    SIR 0-10 dB:  Same-table conversation without headsets (both voices similar volume)
+    # Batch: create mixtures at multiple SNRs
+    python scripts/mix_audio.py --target speaker1.wav --interference noise.wav --snr -5 0 5 10 15 --output-dir mixtures/
+
+    # Mix with WHAM! noise (requires data/wham/)
+    python scripts/mix_audio.py --target speaker1.wav --wham --snr 5 --output mix.wav
 """
 
 import argparse
+import sys
 from pathlib import Path
 
-from src.evaluation.audio_utils import load_audio, mix_audio, save_audio
+import numpy as np
+import soundfile as sf
+
+
+def read_audio(path: str | Path, target_sr: int = 16000) -> np.ndarray:
+    """Read audio file and resample to target sample rate."""
+    data, sr = sf.read(str(path), dtype="float32")
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    if sr != target_sr:
+        num_samples = int(len(data) * target_sr / sr)
+        indices = np.linspace(0, len(data) - 1, num_samples)
+        data = np.interp(indices, np.arange(len(data)), data)
+    return data
+
+
+def mix_at_snr(target: np.ndarray, interference: np.ndarray, snr_db: float) -> np.ndarray:
+    """Mix target and interference signals at a given SNR (dB).
+
+    SNR = 10 * log10(power_target / power_interference)
+    Positive SNR = target louder. Negative = interference louder.
+    """
+    min_len = min(len(target), len(interference))
+    target = target[:min_len]
+    interference = interference[:min_len]
+
+    power_target = np.mean(target ** 2) + 1e-10
+    power_interference = np.mean(interference ** 2) + 1e-10
+
+    desired_ratio = 10 ** (snr_db / 10)
+    scale = np.sqrt(power_target / (power_interference * desired_ratio))
+    interference_scaled = interference * scale
+
+    mixed = target + interference_scaled
+
+    peak = np.max(np.abs(mixed))
+    if peak > 0.95:
+        mixed = mixed * 0.95 / peak
+
+    return mixed
+
+
+def write_audio(path: str | Path, audio: np.ndarray, sr: int = 16000) -> None:
+    """Write audio to WAV file."""
+    sf.write(str(path), audio, sr, format="WAV")
+
+
+def get_random_wham_noise(wham_dir: Path, duration_samples: int, sr: int = 16000) -> np.ndarray:
+    """Load a random WHAM! noise segment."""
+    noise_files = list(wham_dir.glob("**/*.wav"))
+    if not noise_files:
+        print(f"ERROR: No WAV files found in {wham_dir}")
+        print("Run: python scripts/download_wham.py")
+        sys.exit(1)
+
+    rng = np.random.default_rng()
+    noise_file = rng.choice(noise_files)
+    noise = read_audio(noise_file, sr)
+
+    if len(noise) >= duration_samples:
+        start = rng.integers(0, len(noise) - duration_samples + 1)
+        return noise[start : start + duration_samples]
+    else:
+        repeats = (duration_samples // len(noise)) + 1
+        noise = np.tile(noise, repeats)
+        return noise[:duration_samples]
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Mix audio files at specified SIR levels")
-    parser.add_argument("--target", required=True, help="Path to target speaker audio")
-    parser.add_argument("--interference", required=True, help="Path to interference speaker audio")
-    parser.add_argument("--sir", type=float, nargs="+", default=[20.0],
-                        help="Signal-to-interference ratio(s) in dB (default: 20)")
-    parser.add_argument("--output-dir", default="tests/fixtures/mixed",
-                        help="Output directory (default: tests/fixtures/mixed)")
+    parser = argparse.ArgumentParser(description="Mix audio for TSE evaluation")
+    parser.add_argument("--target", required=True, help="Target speaker WAV file")
+    parser.add_argument("--interference", help="Interference WAV file (or use --wham)")
+    parser.add_argument("--wham", action="store_true", help="Use random WHAM! noise as interference")
+    parser.add_argument("--wham-dir", default="data/wham/wav", help="WHAM! noise directory")
+    parser.add_argument("--snr", type=float, nargs="+", default=[5.0], help="SNR in dB (can specify multiple)")
+    parser.add_argument("--output", help="Output WAV path (for single SNR)")
+    parser.add_argument("--output-dir", help="Output directory (for multiple SNRs)")
+
     args = parser.parse_args()
 
-    target_audio, sr = load_audio(args.target)
-    interference_audio, _ = load_audio(args.interference, target_sr=sr)
+    if not args.interference and not args.wham:
+        parser.error("Specify --interference or --wham")
 
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    target = read_audio(args.target)
 
-    target_name = Path(args.target).stem
-    interference_name = Path(args.interference).stem
+    if args.wham:
+        interference = get_random_wham_noise(Path(args.wham_dir), len(target))
+    else:
+        interference = read_audio(args.interference)
 
-    for sir in args.sir:
-        mixed = mix_audio(target_audio, interference_audio, sir_db=sir)
-        output_path = output_dir / f"{target_name}_plus_{interference_name}_sir{sir:.0f}dB.wav"
-        save_audio(str(output_path), mixed, sr)
-        print(f"Created: {output_path} (SIR={sir:.0f} dB)")
+    for snr_db in args.snr:
+        mixed = mix_at_snr(target, interference, snr_db)
+
+        if args.output and len(args.snr) == 1:
+            out_path = Path(args.output)
+        elif args.output_dir:
+            out_dir = Path(args.output_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stem = Path(args.target).stem
+            out_path = out_dir / f"{stem}_snr{snr_db:+.0f}dB.wav"
+        else:
+            stem = Path(args.target).stem
+            out_path = Path(f"{stem}_snr{snr_db:+.0f}dB.wav")
+
+        write_audio(out_path, mixed)
+        print(f"Created: {out_path} (SNR={snr_db:+.0f} dB)")
 
 
 if __name__ == "__main__":
