@@ -4,40 +4,52 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "classroom-audio-research"
-version = "0.1.0"
-description = "Classroom audio pipeline research: TSE, ASR, speaker verification for children's speech"
-requires-python = ">=3.11"
+version = "0.2.0"
+description = "Target-speaker extraction, ASR, and speaker verification research for classroom audio"
+requires-python = ">=3.10"
 dependencies = [
-    "numpy>=1.24",
-    "soundfile>=0.12",
-    "librosa>=0.10",
-    "jiwer>=3.0",          # WER computation
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.9",
+    "pydantic-settings>=2.1.0",
+    "numpy>=1.24.0",
+    "soundfile>=0.12.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov",
-    "ruff",
-]
 ml = [
-    "torch>=2.0",
-    "torchaudio>=2.0",
-    "transformers>=4.36",
-    "speechbrain>=1.0",
-    "einops>=0.6",
+    "torch>=2.1.0",
+    "torchaudio>=2.1.0",
+    "transformers>=4.36.0",
+    "speechbrain @ git+https://github.com/speechbrain/speechbrain.git@develop",
+    "einops>=0.6.0",
+    "onnxruntime>=1.17.0",
+    "scipy>=1.10.0",
 ]
-sedicow = [
-    "torch>=2.0",
-    "torchaudio>=2.0",
-    "transformers>=4.36",
-    "pyannote.audio>=3.0",
+eval = [
+    "jiwer>=3.0.0",
+    "mir_eval>=0.7",
+    "matplotlib>=3.7.0",
+    "pandas>=2.0.0",
 ]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+    "ruff>=0.3.0",
+]
+all = [
+    "classroom-audio-research[ml,eval,dev]",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-v"
 
 [tool.ruff]
+target-version = "py310"
 line-length = 100
-target-version = "py311"
