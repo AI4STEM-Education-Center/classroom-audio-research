@@ -1,48 +1,47 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.egg-info/
-*.egg
 dist/
 build/
-.eggs/
-
-# Virtual environments
+*.egg
 .venv/
 venv/
-env/
 
-# Models (too large for git)
+# Model weights (large — download via scripts/download_models.py)
 models/
 *.ckpt
 *.safetensors
 *.bin
-*.pt
-*.pth
 *.onnx
 
-# Audio files (large, use git-lfs or download scripts)
-# Keep test fixtures small — only commit short clips
-tests/fixtures/**/*.wav
-tests/fixtures/**/*.webm
-tests/fixtures/**/*.mp3
-tests/fixtures/**/*.flac
-!tests/fixtures/**/.gitkeep
+# Vendored upstream repo (only src/tse/vendor/ is our extracted code)
+/vendor/
+
+# Datasets (large — download via scripts/download_wham.py)
+data/
+
+# Audio files (never commit real audio)
+*.wav
+*.webm
+*.mp3
+*.flac
+*.ogg
+
+# Allow test fixtures
+!tests/fixtures/.gitkeep
+
+# Local evaluation runs (baseline results ARE committed in results/)
+results/local-*.json
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
-*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Jupyter
-.ipynb_checkpoints/
-
-# Misc
-*.log
+# Environment
 .env
