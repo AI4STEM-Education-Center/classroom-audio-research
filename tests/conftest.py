@@ -1,4 +1,5 @@
 import io
+import math
 import struct
 import wave
 
@@ -11,14 +12,16 @@ from src.tse.mock import MockTSE
 
 
 def _make_wav_bytes(duration_s: float = 1.0, sample_rate: int = 16000) -> bytes:
-    """Generate WAV bytes containing silence."""
+    """Generate WAV bytes containing a 440Hz sine wave (above energy gate threshold)."""
     num_samples = int(duration_s * sample_rate)
+    amplitude = 16000  # ~0.49 of int16 max — well above RMS 0.005 energy gate
+    samples = [int(amplitude * math.sin(2 * math.pi * 440 * i / sample_rate)) for i in range(num_samples)]
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)  # 16-bit
         wf.setframerate(sample_rate)
-        wf.writeframes(struct.pack(f"<{num_samples}h", *([0] * num_samples)))
+        wf.writeframes(struct.pack(f"<{num_samples}h", *samples))
     return buf.getvalue()
 
 
