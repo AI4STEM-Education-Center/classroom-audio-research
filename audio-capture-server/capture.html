@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Capture — ArguAgent</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --accent: #0f3460;
+    --green: #4ecca3;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --blue: #3498db;
+    --purple: #9b59b6;
+    --text: #eee;
+    --text-dim: #999;
+    --border: #2a2a4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header .status { font-size: 13px; color: var(--text-dim); }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  /* ── Session ── */
+  .session-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .session-bar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .session-bar .session-name {
+    color: var(--green);
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--blue);
+  }
+  select, button, input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  select { width: 100%; margin-bottom: 8px; }
+  button {
+    padding: 8px 20px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  button:hover { border-color: var(--green); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--green); color: #000; border-color: var(--green); }
+  button.danger { background: var(--red); color: #fff; border-color: var(--red); }
+  button.warning { background: var(--orange); color: #000; border-color: var(--orange); }
+
+  /* ── Device Panels ── */
+  .devices-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .device-panel {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .device-panel.dev-a { border-color: var(--green); }
+  .device-panel.dev-b { border-color: var(--purple); }
+  .device-panel h2 { margin-bottom: 8px; }
+  .device-panel .dev-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .dev-a .dev-label { color: var(--green); }
+  .dev-b .dev-label { color: var(--purple); }
+
+  .device-panel .check-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .device-panel .check-row input[type="checkbox"] { cursor: pointer; }
+
+  /* ── Channel cards ── */
+  .channel-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .ch-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .ch-card h4 {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .ch-card .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .badge.on { background: var(--green); color: #000; }
+  .badge.off { background: var(--red); color: #fff; }
+  .badge.pcm { background: var(--blue); color: #fff; }
+
+  .meter-container {
+    height: 10px;
+    background: #111;
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 6px 0 2px;
+  }
+  .meter-bar {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.05s;
+    background: linear-gradient(90deg, var(--green) 0%, var(--orange) 70%, var(--red) 100%);
+  }
+  .meter-label { font-size: 10px; color: var(--text-dim); }
+
+  /* ── Phase Controls ── */
+  .phase-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .phase-controls button { font-size: 12px; padding: 6px 14px; }
+  .phase-controls button.active { border-color: var(--green); color: var(--green); }
+
+  /* ── Recording Controls ── */
+  .rec-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .rec-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #333;
+  }
+  .rec-indicator.recording {
+    background: var(--red);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .timer { font-family: monospace; font-size: 20px; font-weight: 600; }
+
+  .log {
+    background: #0a0a1a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .log .entry { color: var(--text-dim); }
+  .log .entry.ok { color: var(--green); }
+  .log .entry.err { color: var(--red); }
+  .log .entry.warn { color: var(--orange); }
+
+  .speaker-field {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .speaker-field label { font-size: 13px; color: var(--text-dim); white-space: nowrap; }
+  .speaker-field input { flex: 1; }
+
+  .rec-list { margin-top: 8px; }
+  .rec-list .rec-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .rec-item .name { color: var(--text); }
+  .rec-item .size { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Audio Capture — ArguAgent (Dual Device)</h1>
+  <div class="status" id="serverStatus">Connecting...</div>
+</header>
+
+<div class="container">
+
+  <!-- Session -->
+  <div class="session-bar">
+    <label style="font-size:13px; color:var(--text-dim)">Your name:</label>
+    <input type="text" id="clientName" placeholder="e.g. Arne" style="max-width:140px;">
+    <label style="font-size:13px; color:var(--text-dim); margin-left:8px;">Session:</label>
+    <input type="text" id="sessionLabel" placeholder="e.g. friday_test_run_1">
+    <button class="primary" id="btnNewSession">New Session</button>
+    <span class="session-name" id="sessionName">--</span>
+  </div>
+
+  <!-- Two device panels side by side -->
+  <div class="devices-grid">
+
+    <!-- Device A -->
+    <div class="device-panel dev-a">
+      <div class="dev-label">Device A</div>
+      <h2 style="color:var(--green);">USB Headset / Mic 1</h2>
+      <select id="deviceSelectA"><option value="">Loading...</option></select>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <input type="text" id="deviceTagA" placeholder="Tag: e.g. usb_headset" style="flex:1; font-size:12px; padding:6px 8px;">
+        <button id="btnTestA" class="warning" style="font-size:11px; padding:5px 10px;">Test 5s</button>
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="chkEnableA" checked> <label for="chkEnableA">Enable this device</label>
+      </div>
+
+      <div class="channel-row">
+        <div class="ch-card">
+          <h4>RAW <span class="badge on">No Proc</span></h4>
+          <div class="meter-container"><div class="meter-bar" id="meterA_raw" style="width:0%"></div></div>
+          <div class="meter-label"><span id="levelA_raw">--</span> dB</div>
+        </div>
+        <div class="ch-card">
+          <h4>PROCESSED <span class="badge off">Chrome</span></h4>
+          <div class="meter-container"><div class="meter-bar" id="meterA_proc" style="width:0%"></div></div>
+          <div class="meter-label"><span id="levelA_proc">--</span> dB</div>
+        </div>
+        <div class="ch-card">
+          <h4>PCM <span class="badge pcm">Bypass</span></h4>
+          <div class="meter-container"><div class="meter-bar" id="meterA_pcm" style="width:0%"></div></div>
+          <div class="meter-label"><span id="levelA_pcm">--</span> dB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Device B -->
+    <div class="device-panel dev-b">
+      <div class="dev-label">Device B</div>
+      <h2 style="color:var(--purple);">AUX / Mic 2</h2>
+      <select id="deviceSelectB"><option value="">Loading...</option></select>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <input type="text" id="deviceTagB" placeholder="Tag: e.g. aux_lapel" style="flex:1; font-size:12px; padding:6px 8px;">
+        <button id="btnTestB" class="warning" style="font-size:11px; padding:5px 10px;">Test 5s</button>
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="chkEnableB" checked> <label for="chkEnableB">Enable this device</label>
+      </div>
+
+      <div class="channel-row">
+        <div class="ch-card">
+          <h4>RAW <span class="badge on">No Proc</span></h4>
+          <div class="meter-container"><div class="meter-bar" id="meterB_raw" style="width:0%"></div></div>
+          <div class="meter-label"><span id="levelB_raw">--</span> dB</div>
+        </div>
+        <div class="ch-card">
+          <h4>PROCESSED <span class="badge off">Chrome</span></h4>
+          <div class="meter-container"><div class="meter-bar" id="meterB_proc" style="width:0%"></div></div>
+          <div class="meter-label"><span id="levelB_proc">--</span> dB</div>
+        </div>
+        <div class="ch-card">
+          <h4>PCM <span class="badge pcm">Bypass</span></h4>
+          <div class="meter-container"><div class="meter-bar" id="meterB_pcm" style="width:0%"></div></div>
+          <div class="meter-label"><span id="levelB_pcm">--</span> dB</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center; margin-bottom:12px;">
+    <button id="btnRefreshDevices" style="font-size:12px;">Refresh All Devices</button>
+  </div>
+
+  <!-- Phase + Speaker -->
+  <div class="panel">
+    <h2>Recording Phase</h2>
+    <div class="phase-controls">
+      <button class="active" data-phase="setup">0. Setup</button>
+      <button data-phase="enrollment">1. Enrollment</button>
+      <button data-phase="noise">2. Noise Only</button>
+      <button data-phase="discuss_seated">3. Discussion (seated)</button>
+      <button data-phase="discuss_moving">4. Discussion (moving)</button>
+      <button data-phase="stress">5. Stress Test</button>
+      <button data-phase="custom">Custom</button>
+    </div>
+    <div class="speaker-field">
+      <label>Speaker:</label>
+      <input type="text" id="speakerName" placeholder="e.g. Arne">
+      <label style="margin-left:12px;">Custom phase:</label>
+      <input type="text" id="customPhase" placeholder="e.g. mic_test_2" style="width:180px;">
+      <label style="margin-left:12px; font-size:12px; color:var(--text-dim);">
+        <input type="checkbox" id="chkPCM" checked> PCM capture
+      </label>
+    </div>
+  </div>
+
+  <!-- Recording Controls -->
+  <div class="panel">
+    <div class="rec-controls">
+      <div class="rec-indicator" id="recIndicator"></div>
+      <button class="primary" id="btnRecord" style="font-size:16px; padding:12px 32px;">
+        START RECORDING
+      </button>
+      <button class="danger" id="btnStop" disabled style="font-size:16px; padding:12px 32px;">
+        STOP
+      </button>
+      <div class="timer" id="timer">00:00</div>
+    </div>
+  </div>
+
+  <!-- Recordings -->
+  <div class="panel">
+    <h2>Recordings This Session</h2>
+    <div class="rec-list" id="recList">
+      <div class="empty" style="color:var(--text-dim); font-size:13px;">No recordings yet.</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="panel">
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+</div>
+
+<script src="capture.js"></script>
+</body>
+</html>

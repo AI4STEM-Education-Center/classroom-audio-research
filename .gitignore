@@ -46,3 +46,6 @@ Thumbs.db
 # Misc
 *.log
 .env
+
+# Audio capture server — exclude runtime recordings
+audio-capture-server/recordings/

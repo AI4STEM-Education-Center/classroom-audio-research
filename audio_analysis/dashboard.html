@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArguAgent Audio Analysis</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+       background: #F0F2F5; color: #212121; }
+header { background: #1565C0; color: white; padding: 14px 24px;
+         display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+header h1 { font-size: 1.25rem; font-weight: 600; }
+.badge { background: rgba(255,255,255,.2); border-radius: 12px;
+         padding: 2px 10px; font-size: 0.8rem; }
+.main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.card { background: white; border-radius: 10px; padding: 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.10); margin-bottom: 18px; }
+.card h2 { font-size: 0.95rem; font-weight: 600; color: #666;
+           text-transform: uppercase; letter-spacing: .05em; margin-bottom: 14px; }
+.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+label { font-size: 0.82rem; color: #666; display: block; margin-bottom: 4px; }
+select, input[type=text] {
+  padding: 8px 12px; border: 1px solid #CCC; border-radius: 7px;
+  font-size: 0.88rem; background: white; }
+select { min-width: 340px; }
+input[type=text] { min-width: 320px; }
+button { padding: 8px 20px; background: #1565C0; color: white; border: none;
+         border-radius: 7px; cursor: pointer; font-size: 0.88rem; white-space: nowrap;
+         transition: background .15s; }
+button:hover { background: #0D47A1; }
+details { border: 1px solid #E0E0E0; border-radius: 8px; }
+summary { padding: 10px 14px; cursor: pointer; font-size: 0.88rem;
+          color: #666; user-select: none; }
+details[open] summary { border-bottom: 1px solid #E0E0E0; }
+.details-body { padding: 16px; }
+#spinner { display: none; text-align: center; padding: 48px; color: #666; font-size: 1rem; }
+.spin { display: inline-block; width: 22px; height: 22px; margin-left: 8px;
+        border: 3px solid #DDD; border-top-color: #1565C0; border-radius: 50%;
+        animation: spin .8s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#results { display: none; }
+.tabs { display: flex; gap: 2px; border-bottom: 2px solid #E0E0E0; margin-bottom: 18px; flex-wrap: wrap; }
+.tab-btn { padding: 8px 16px; border: none; background: none; cursor: pointer;
+           font-size: 0.88rem; color: #777; border-bottom: 2px solid transparent;
+           margin-bottom: -2px; transition: color .15s; }
+.tab-btn.active { color: #1565C0; border-bottom-color: #1565C0; font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.mc { background: #F8FAFF; border-radius: 8px; padding: 14px;
+      border-left: 4px solid #1565C0; }
+.mc.b { border-left-color: #E65100; background: #FFF8F5; }
+.mc .lbl { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+.mc .val { font-size: 1.35rem; font-weight: 700; color: #212121; margin: 4px 0 2px; }
+.mc .sub { font-size: 0.78rem; color: #AAA; }
+.warn { background: #FFF8E1; border: 1px solid #FFD54F; border-radius: 7px;
+        padding: 10px 14px; font-size: 0.86rem; color: #6D4C41; margin-bottom: 10px; }
+.err { background: #FFEBEE; border: 1px solid #EF9A9A; border-radius: 7px;
+       padding: 12px 16px; color: #B71C1C; font-size: 0.88rem; margin-bottom: 14px; }
+img.plot { width: 100%; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.10); }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+table.segs { width: 100%; border-collapse: collapse; font-size: 0.83rem; margin-top: 14px; }
+table.segs th { background: #ECEFF1; padding: 7px 10px; text-align: left; font-weight: 600; }
+table.segs td { padding: 6px 10px; border-bottom: 1px solid #F0F0F0; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+pre.jblk { background: #263238; color: #ECEFF1; padding: 16px; border-radius: 8px;
+           font-size: 0.78rem; overflow: auto; max-height: 420px; white-space: pre-wrap; }
+.diar-sum { margin-top: 10px; font-size: 0.84rem; color: #555; }
+.speaker-a { color: #1565C0; font-weight: 600; }
+.speaker-b { color: #E65100; font-weight: 600; }
+/* Transcription */
+.tx-out { background: #FAFAFA; border: 1px solid #E0E0E0; border-radius: 8px;
+          padding: 16px; max-height: 520px; overflow-y: auto; font-size: 0.9rem;
+          line-height: 1.6; }
+.tx-line { margin: 4px 0; }
+.tx-a { color: #1565C0; font-weight: 600; }
+.tx-b { color: #E65100; font-weight: 600; }
+.tx-sim { background: #F3E5F5; border-left: 3px solid #7B1FA2; padding: 5px 12px;
+          margin: 6px 0; border-radius: 0 6px 6px 0; }
+.tx-sim-lbl { font-size: 0.78rem; color: #7B1FA2; font-weight: 600; margin-bottom: 3px; }
+.tx-time { font-size: 0.76rem; color: #BBB; margin-right: 6px; font-family: monospace; }
+pre.tx-raw { background: #263238; color: #ECEFF1; padding: 16px; border-radius: 8px;
+             font-size: 0.78rem; overflow: auto; max-height: 380px; white-space: pre-wrap; }
+.progress-bar-wrap { background: #E0E0E0; border-radius: 8px; height: 6px;
+                     margin: 8px 0; overflow: hidden; display: none; }
+.progress-bar { background: #1565C0; height: 6px; width: 0%; transition: width .3s;
+                border-radius: 8px; }
+/* Evaluation */
+.ev-metrics { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 18px; }
+.ev-metric { background: #F5F5F5; border-radius: 8px; padding: 10px 18px; min-width: 130px; }
+.ev-metric .lbl { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+.ev-metric .val { font-size: 1.5rem; font-weight: 700; color: #333; }
+.ev-metric .val.good { color: #388E3C; }
+.ev-metric .val.warn { color: #F57C00; }
+.ev-metric .val.bad  { color: #C62828; }
+.ev-diff { font-size: 0.83rem; line-height: 1.9; background: #FAFAFA;
+           border: 1px solid #E0E0E0; border-radius: 8px; padding: 12px 16px;
+           max-height: 260px; overflow-y: auto; }
+.ev-diff h4 { margin: 0 0 6px; font-size: 0.8rem; color: #555; font-weight: 600; }
+.ev-ok  { color: #2E7D32; }
+.ev-sub { background: #FFF9C4; color: #E65100; border-radius: 2px 0 0 2px; padding: 0 2px;
+          font-style: italic; }
+.ev-del { color: #C62828; font-weight: 600; opacity: .85; }
+.ev-ins { background: #E8F5E9; color: #1B5E20; border-radius: 2px; padding: 0 2px; }
+/* Pipeline comparison */
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; margin: 10px 0 16px; }
+.cmp-table th { background: #ECEFF1; padding: 8px 10px; text-align: left;
+                font-weight: 600; white-space: nowrap; }
+.cmp-table td { padding: 7px 10px; border-bottom: 1px solid #F0F0F0; vertical-align: top; }
+.cmp-table tr:hover td { background: #F8F9FA; }
+.cmp-pl { font-weight: 600; white-space: nowrap; }
+.cmp-wer { font-weight: 700; }
+.cmp-wer.good { color: #388E3C; }
+.cmp-wer.warn { color: #F57C00; }
+.cmp-wer.bad  { color: #C62828; }
+.cmp-wer.best::before { content: '★ '; }
+.cmp-err { color: #C62828; font-size: 0.8rem; }
+.cmp-note { font-size: 0.75rem; color: #777; }
+.insights-box { background: #F0F4FF; border: 1px solid #C5D3F0; border-radius: 8px;
+                padding: 14px 16px; margin-top: 4px; font-size: 0.84rem; line-height: 1.8; }
+.insights-box h4 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+                   letter-spacing: .06em; color: #555; margin-bottom: 8px; }
+.i-good { color: #2E7D32; font-weight: 600; }
+.i-warn { color: #C62828; font-weight: 600; }
+.i-info { color: #1565C0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ArguAgent Audio Analysis</h1>
+  <span class="badge" id="port-badge">port 5050</span>
+</header>
+<div class="main">
+
+  <div class="card">
+    <h2>Load Session</h2>
+    <div class="row">
+      <div>
+        <label>Session directory</label>
+        <select id="sel-session" onchange="onSessionChange()"><option value="">Loading…</option></select>
+      </div>
+      <button onclick="analyzeSession()">Analyze Session</button>
+    </div>
+    <div id="tag-row" style="display:none;margin-top:10px" class="row">
+      <div>
+        <label>Speaker A recording</label>
+        <select id="sel-tag-a" style="min-width:260px"></select>
+      </div>
+      <div>
+        <label>Speaker B recording</label>
+        <select id="sel-tag-b" style="min-width:260px"></select>
+      </div>
+    </div>
+  </div>
+
+  <details>
+    <summary>Or load two specific WAV files manually</summary>
+    <div class="details-body">
+      <div class="row">
+        <div>
+          <label>Mic A — Headset / single-mic WAV path</label>
+          <input type="text" id="fa" placeholder="C:\\path\\to\\headset.wav">
+        </div>
+        <div>
+          <label>Mic B — Array / laptop-mic WAV path</label>
+          <input type="text" id="fb" placeholder="C:\\path\\to\\array.wav">
+        </div>
+        <button onclick="analyzeFiles()">Analyze Files</button>
+      </div>
+    </div>
+  </details>
+
+  <div id="err-area"></div>
+  <div id="spinner">Analyzing audio… <span class="spin"></span></div>
+
+
+  <div id="results">
+    <div class="card">
+      <div id="warn-area"></div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="tab('overview',this)">Overview</button>
+        <button class="tab-btn" onclick="tab('waveforms',this)">Waveforms</button>
+        <button class="tab-btn" onclick="tab('spectrograms',this)">Spectrograms</button>
+        <button class="tab-btn" onclick="tab('enhance',this)">Enhancement</button>
+        <button class="tab-btn" onclick="tab('diarization',this)">Diarization</button>
+        <button class="tab-btn" onclick="tab('raw',this)">Raw Metrics</button>
+      </div>
+
+      <div id="tab-overview" class="tab-panel active">
+        <div class="metrics-grid" id="mgrid"></div>
+      </div>
+
+      <div id="tab-waveforms" class="tab-panel">
+        <img id="plt-wave" class="plot" alt="Waveform overlay">
+      </div>
+
+      <div id="tab-spectrograms" class="tab-panel">
+        <img id="plt-spec" class="plot" alt="Spectrograms">
+      </div>
+
+      <div id="tab-enhance" class="tab-panel">
+        <img id="plt-enhance" class="plot" alt="Enhancement comparison">
+      </div>
+
+      <div id="tab-diarization" class="tab-panel">
+        <div class="row" style="margin-bottom:12px;align-items:center">
+          <div>
+            <label>VAD method</label>
+            <select id="diar-method" onchange="switchDiarMethod()" style="min-width:340px"></select>
+          </div>
+        </div>
+        <img id="plt-diar" class="plot" alt="Diarization timeline" style="margin-bottom:14px">
+        <img id="plt-ener" class="plot" alt="Energy ratio">
+        <div class="diar-sum" id="diar-sum"></div>
+      </div>
+
+      <div id="tab-raw" class="tab-panel">
+        <pre class="jblk" id="raw-json"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcription card -->
+  <div class="card" id="tx-card">
+    <h2>Transcription — OpenAI Whisper</h2>
+    <div style="margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
+      <button id="tx-btn" onclick="transcribeSession('full')" title="Align + fixed spectral subtraction (α=0.15) → Whisper" style="display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto">
+        <span style="font-weight:700;font-size:.88rem">Full pipeline</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Align → light bleed reduction (α=0.15 fixed) → Whisper</span>
+      </button>
+      <button id="tx-btn-raw" onclick="transcribeSession('raw')" style="background:#546E7A;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="No preprocessing — straight to Whisper after alignment">
+        <span style="font-weight:700;font-size:.88rem">Aligned only</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Align only, no cleanup → Whisper. Baseline / debug.</span>
+      </button>
+      <button id="tx-btn-adaptive" onclick="transcribeSession('adaptive')" style="background:#2E7D32;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="Measures bleed per channel, picks best of raw vs cleaned">
+        <span style="font-weight:700;font-size:.88rem">Adaptive</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Auto-tunes α per channel; A/B tests raw vs cleaned per mic.</span>
+      </button>
+      <button id="tx-btn-aec" onclick="transcribeSession('aec')" style="background:#6A1B9A;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="Bidirectional adaptive NLMS echo canceller">
+        <span style="font-weight:700;font-size:.88rem">AEC</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">VAD-guided bidirectional NLMS filter. Best for heavy crosstalk.</span>
+      </button>
+      <button id="tx-btn-vad" onclick="transcribeSession('vad')" style="background:#00695C;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="VAD gates Speaker A to solo frames; text-diff cleans Speaker B">
+        <span style="font-weight:700;font-size:.88rem">VAD-gated</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">A: solo frames only → Whisper. B: full audio − A's n-grams.</span>
+      </button>
+      <button id="tx-btn-ratiovat" onclick="transcribeSession('ratiovat')" style="background:#4527A0;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="Uses measured bleed ratio to calibrate VAD thresholds, fixing false overlap detection. AEC then gets genuine solo frames to adapt on.">
+        <span style="font-weight:700;font-size:.88rem">Ratio-VAD + AEC</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Bleed-calibrated VAD → bidirectional AEC → light subtraction. Fixes false overlap detection.</span>
+      </button>
+      <button id="tx-btn-mvp" onclick="transcribeSession('mvp')" style="background:#1B5E20;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="Two-stage: Ratio-VAD+AEC (audio) + timestamp-gated n-gram subtraction (text). Auto-detects clean channel. No fixed thresholds.">
+        <span style="font-weight:700;font-size:.88rem">MVP</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Ratio-VAD+AEC + text-diff bleed removal. Adapts to any recording.</span>
+      </button>
+      <button id="tx-btn-reftext" onclick="transcribeSession('reftext')" style="background:#006064;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="Transcribes both channels raw, then removes verbatim bleed by n-gram matching clean→noisy. Timestamp-gated. Skips text-diff automatically if bleed is symmetric (&lt;10 pp difference).">
+        <span style="font-weight:700;font-size:.88rem">Ref-Text ★ recommended</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Raw transcription → text-diff removes verbatim bleed. Asymmetry guard for safe fallback.</span>
+      </button>
+      <button id="tx-btn-vadchunked" onclick="transcribeSession('vadchunked')" style="background:#4A148C;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto" title="Ratio-VAD solo frames → per-speaker Whisper chunks → timestamp remapping → VAD-based simultaneous flagging. Fixes the 'everything is simultaneous' bug at the source.">
+        <span style="font-weight:700;font-size:.88rem">VAD-Chunked</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Solo-only Whisper chunks per speaker → accurate timestamps and simultaneous flags.</span>
+      </button>
+      <button id="tx-btn-all" onclick="transcribeAll()" style="background:#37474F;display:flex;flex-direction:column;align-items:flex-start;padding:10px 14px;height:auto;grid-column:1/-1" title="Run all 9 pipelines in parallel via the OpenAI API, then compare WER and generate insights">
+        <span style="font-weight:700;font-size:.88rem">&#9654; Run All &amp; Compare</span>
+        <span style="font-size:.75rem;opacity:.85;margin-top:3px;text-align:left">Run all 9 pipelines in parallel → side-by-side WER table + automated insights on what worked and what didn't</span>
+      </button>
+    </div>
+    <div class="progress-bar-wrap" id="tx-prog-wrap"><div class="progress-bar" id="tx-prog"></div></div>
+    <div id="tx-status" style="font-size:0.84rem;margin-bottom:6px"></div>
+    <div id="tx-err"></div>
+    <div id="tx-results" style="display:none">
+      <div class="tx-out" id="tx-out"></div>
+      <h3 style="margin-top:16px;font-size:.88rem;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:.04em">
+        Plain-text copy
+      </h3>
+      <pre class="tx-raw" id="tx-raw"></pre>
+      <div id="ev-section" style="display:none;margin-top:24px">
+        <h3 style="font-size:.88rem;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">
+          Ground-Truth Comparison
+        </h3>
+        <div id="ev-notice" style="font-size:.8rem;margin-bottom:10px"></div>
+        <div class="ev-metrics" id="ev-metrics"></div>
+        <div class="ev-diff" id="ev-diff-a" style="margin-bottom:12px"></div>
+        <div class="ev-diff" id="ev-diff-b" style="margin-bottom:12px"></div>
+        <pre class="tx-raw" id="ev-plain" style="max-height:260px"></pre>
+      </div>
+    </div>
+
+    <!-- All-pipeline comparison results -->
+    <div id="tx-all-results" style="display:none;margin-top:20px;border-top:2px solid #E0E0E0;padding-top:18px">
+      <h3 style="font-size:.88rem;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">
+        Pipeline Comparison
+      </h3>
+      <div id="tx-all-table"></div>
+      <div class="insights-box" id="tx-insights" style="display:none"></div>
+      <details style="margin-top:16px;border:1px solid #E0E0E0;border-radius:8px">
+        <summary style="padding:10px 14px;cursor:pointer;font-size:.88rem;color:#666;user-select:none">Full transcripts per pipeline</summary>
+        <div class="details-body" id="tx-all-transcripts" style="padding:16px"></div>
+      </details>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const PORT = location.port || '5050';
+document.getElementById('port-badge').textContent = 'port ' + PORT;
+let _lastResult = null;
+let _sessionTags = {};   // session path → [tag, ...]
+
+fetch('/api/sessions').then(r=>r.json()).then(d=>{
+  const sel = document.getElementById('sel-session');
+  const sessions = d.sessions || [];
+  if (!sessions.length) { sel.innerHTML = '<option value="">No sessions found</option>'; return; }
+  const usable = sessions.filter(s => s.wav_count > 0);
+  if (!usable.length) { sel.innerHTML = '<option value="">No sessions with recordings found</option>'; return; }
+  _sessionTags = {};
+  usable.forEach(s => { _sessionTags[s.path] = s.tags || []; });
+  sel.innerHTML = usable.map(s=>{
+    const lbl = s.name + (s.label?' — '+s.label:'') + (!s.has_pair?' (no WAV pair)':'');
+    return `<option value="${s.path}" ${!s.has_pair?'disabled':''}>${lbl}</option>`;
+  }).join('');
+  onSessionChange();
+}).catch(e=>{
+  document.getElementById('sel-session').innerHTML =
+    `<option value="">Error: ${e.message||'cannot reach server'}</option>`;
+});
+
+function onSessionChange() {
+  const path = document.getElementById('sel-session').value;
+  const tags = _sessionTags[path] || [];
+  const row = document.getElementById('tag-row');
+  if (tags.length < 2) { row.style.display = 'none'; return; }
+  row.style.display = '';
+  const autoOpt = '<option value="">— auto-detect —</option>';
+  const opts = tags.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('sel-tag-a').innerHTML = autoOpt + opts;
+  document.getElementById('sel-tag-b').innerHTML = autoOpt + opts;
+}
+
+function tab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function setErr(msg) {
+  document.getElementById('err-area').innerHTML = msg
+    ? `<div class="err">${msg}</div>` : '';
+}
+
+function analyzeSession() {
+  const p = document.getElementById('sel-session').value;
+  if (!p) { setErr('Please select a session.'); return; }
+  const body = { session_path: p };
+  const tagA = document.getElementById('sel-tag-a').value;
+  const tagB = document.getElementById('sel-tag-b').value;
+  if (tagA) body.tag_a = tagA;
+  if (tagB) body.tag_b = tagB;
+  doAnalysis('/api/analyze/session', body);
+}
+
+function analyzeFiles() {
+  const a = document.getElementById('fa').value.trim();
+  const b = document.getElementById('fb').value.trim();
+  if (!a||!b) { setErr('Please provide both WAV file paths.'); return; }
+  doAnalysis('/api/analyze/files', { file_a: a, file_b: b });
+}
+
+function doAnalysis(url, body) {
+  setErr('');
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('spinner').style.display = 'block';
+  fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+    .then(r=>r.json().then(data=>({ok:r.ok, data})))
+    .then(({ok,data})=>{
+      document.getElementById('spinner').style.display = 'none';
+      if (!ok) { setErr((data.error||'Analysis failed')+(data.detail?'<br><small>'+data.detail+'</small>':'')); return; }
+      render(data);
+    })
+    .catch(e=>{ document.getElementById('spinner').style.display='none'; setErr('Network error: '+e.message); });
+}
+
+const COLORS = {
+  SILENCE:'#9E9E9E', SPEAKER_A:'#1976D2', SPEAKER_B:'#E65100',
+  SPEAKER_A_DOMINANT:'#42A5F5', SPEAKER_B_DOMINANT:'#FF8A65', OVERLAP:'#7B1FA2'
+};
+
+function render(d) {
+  // Warnings
+  const wa = document.getElementById('warn-area');
+  wa.innerHTML = '';
+  const warns = [...(d.warnings||[])];
+  if (Math.abs(d.sync_offset_sec||0) > 0.5)
+    warns.push(`Sync offset: ${Number(d.sync_offset_sec).toFixed(2)} s between the two recordings — corrected automatically.`);
+  warns.forEach(w=>wa.innerHTML+=`<div class="warn">⚠ ${w}</div>`);
+
+  // Overview metrics
+  const g = document.getElementById('mgrid');
+  const h = d.headset||{}, a = d.array||{};
+  const nameH = h.speaker || 'Speaker A', nameA = a.speaker || 'Speaker B';
+  const snrH=(h.snr||{}).snr_db, snrA=(a.snr||{}).snr_db;
+  const bw3H=(h.bandwidth||{}).bandwidth_3db_hz, bw3A=(a.bandwidth||{}).bandwidth_3db_hz;
+  const bw10H=(h.bandwidth||{}).bandwidth_10db_hz, bw10A=(a.bandwidth||{}).bandwidth_10db_hz;
+  const sbH=(h.bandwidth||{}).speech_band_bw_90pct_hz, sbA=(a.bandwidth||{}).speech_band_bw_90pct_hz;
+  const actH=(h.quality||{}).speech_activity_pct, actA=(a.quality||{}).speech_activity_pct;
+  const fmt = (v,u,n=1)=>v!=null?Number(v).toFixed(n)+u:'N/A';
+  g.innerHTML = [
+    ['','SNR — '+nameH+' (A)', fmt(snrH,' dB'), 'noise floor: '+fmt((h.snr||{}).noise_floor_db,' dB')],
+    ['b','SNR — '+nameA+' (B)',   fmt(snrA,' dB'), 'noise floor: '+fmt((a.snr||{}).noise_floor_db,' dB')],
+    ['','Speech BW — '+nameH, sbH?(sbH/1000).toFixed(1)+' kHz':'N/A', '90% cumulative energy (100–8kHz)'],
+    ['b','Speech BW — '+nameA,  sbA?(sbA/1000).toFixed(1)+' kHz':'N/A', '90% cumulative energy (100–8kHz)'],
+    ['','Speech % — '+nameH, fmt(actH,' %',0), 'voiced frames'],
+    ['b','Speech % — '+nameA,  fmt(actA,' %',0), 'voiced frames'],
+    ['','Duration', fmt(d.duration_sec,' s'), 'aligned length'],
+    ['','Sync offset', fmt(d.sync_offset_sec,' s',2), 'A starts this long before B'],
+  ].map(([cls,lbl,val,sub])=>
+    `<div class="mc ${cls}"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`
+  ).join('');
+
+  // Cache result for method switching
+  _lastResult = d;
+
+  // Populate VAD method selector from available methods in result
+  const methodSel = document.getElementById('diar-method');
+  const METHOD_LABELS = {
+    'm1_energy':     'M1 — Energy baseline (raw thresholds)',
+    'm3_adaptive':   'M3 — Adaptive threshold (bleed-aware)',
+    'm2_crosstalk':  'M2 — Crosstalk-corrected signals',
+    'm2m3_combined': 'M2+M3 — Crosstalk + adaptive ★ default',
+    'm4_silero':     'M4 — Silero VAD (neural)',
+    'm2m4_best':     'M2+M4 — Crosstalk + Silero (best)',
+  };
+  const availMethods = Object.keys(d.diarization_methods||{});
+  methodSel.innerHTML = availMethods.map(k=>
+    `<option value="${k}" ${k==='m2m3_combined'?'selected':''}>${METHOD_LABELS[k]||k}</option>`
+  ).join('');
+
+  // Shared plots (waveform, spectrograms, energy ratio are method-independent)
+  const plots = d.plots||{};
+  if (plots.waveform)              document.getElementById('plt-wave').src = plots.waveform;
+  if (plots.spectrograms)          document.getElementById('plt-spec').src = plots.spectrograms;
+  if (plots.enhancement_comparison) document.getElementById('plt-enhance').src = plots.enhancement_comparison;
+  if (plots.energy_ratio)          document.getElementById('plt-ener').src = plots.energy_ratio;
+
+  // Render default diarization method
+  const defMethod = (d.diarization_methods||{})['m2m3_combined'] || d.diarization;
+  renderDiarization(defMethod);
+
+  // Raw JSON (omit plots and per-frame data — too large)
+  const raw = JSON.parse(JSON.stringify(d));
+  delete raw.plots;
+  Object.values(raw.diarization_methods||{}).forEach(m => { delete m.frames; delete m.plot_timeline; });
+  if (raw.diarization) delete raw.diarization.frames;
+  document.getElementById('raw-json').textContent = JSON.stringify(raw, null, 2);
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderDiarization(m) {
+  if (!m) return;
+  if (m.plot_timeline) document.getElementById('plt-diar').src = m.plot_timeline;
+  const d = _lastResult||{};
+  const nameH = ((d.headset||{}).speaker)||'Speaker A';
+  const nameA = ((d.array||{}).speaker)||'Speaker B';
+
+  // Summary — dual-boolean VAD statistics
+  const sum = m.summary||{};
+  document.getElementById('diar-sum').innerHTML =
+    `<span class="speaker-a">${nameH}: ${Number(sum.a_total_pct||0).toFixed(1)}% total</span> &nbsp;|&nbsp; `+
+    `<span class="speaker-b">${nameA}: ${Number(sum.b_total_pct||0).toFixed(1)}% total</span> &nbsp;|&nbsp; `+
+    `Overlap: ${Number(sum.both_pct||0).toFixed(1)}% &nbsp;|&nbsp; `+
+    `Silence: ${Number(sum.silence_pct||0).toFixed(1)}% &nbsp;|&nbsp; `+
+    `<span style="color:#7B1FA2">Overlap ratio: ${Number(sum.overlap_ratio||0).toFixed(1)}%</span>`;
+}
+
+function switchDiarMethod() {
+  const method = document.getElementById('diar-method').value;
+  if (!_lastResult) return;
+  const m = (_lastResult.diarization_methods||{})[method] || _lastResult.diarization;
+  renderDiarization(m);
+}
+
+// ── Transcription ─────────────────────────────────────────────────────────────
+
+const ALL_TX_BTNS = ['tx-btn','tx-btn-raw','tx-btn-adaptive','tx-btn-aec','tx-btn-vad','tx-btn-ratiovat','tx-btn-mvp','tx-btn-reftext','tx-btn-vadchunked','tx-btn-all'];
+const PIPELINE_LABELS = {raw:'Aligned only', full:'Full pipeline', adaptive:'Adaptive', aec:'AEC', vad:'VAD-gated', ratiovat:'Ratio-VAD+AEC', mvp:'MVP', reftext:'Ref-Text ★', vadchunked:'VAD-Chunked'};
+const PIPELINE_ORDER  = ['raw','full','adaptive','aec','vad','ratiovat','mvp','reftext','vadchunked'];
+
+function txStatus(msg, color) {
+  const el = document.getElementById('tx-status');
+  el.textContent = msg;
+  el.style.color = color || '#666';
+}
+
+function txErr(msg) {
+  document.getElementById('tx-err').innerHTML = msg
+    ? `<div class="err">${msg}</div>` : '';
+}
+
+function _txBuild(path) {
+  const body = {session_path: path};
+  const tagA = document.getElementById('sel-tag-a').value;
+  const tagB = document.getElementById('sel-tag-b').value;
+  if (tagA) body.tag_a = tagA;
+  if (tagB) body.tag_b = tagB;
+  return body;
+}
+
+function _txDisable(on) {
+  ALL_TX_BTNS.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = on; });
+}
+
+function _txProgress(start) {
+  const wrap = document.getElementById('tx-prog-wrap');
+  const bar  = document.getElementById('tx-prog');
+  if (start) {
+    wrap.style.display = 'block';
+    let pct = 0;
+    return setInterval(() => { pct = Math.min(pct + Math.random() * 4, 92); bar.style.width = pct + '%'; }, 800);
+  } else {
+    bar.style.width = '100%';
+    setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0%'; }, 600);
+    return null;
+  }
+}
+
+function transcribeSession(mode) {
+  const path = document.getElementById('sel-session').value;
+  if (!path) { txErr('Please select a session first.'); return; }
+  txErr('');
+  document.getElementById('tx-results').style.display = 'none';
+  document.getElementById('tx-all-results').style.display = 'none';
+  _txDisable(true);
+  const prog = _txProgress(true);
+  const URLS = {full:'/api/transcribe/session', raw:'/api/transcribe/session/raw',
+                adaptive:'/api/transcribe/session/adaptive',
+                aec:'/api/transcribe/session/aec', vad:'/api/transcribe/session/vad',
+                ratiovat:'/api/transcribe/session/ratiovat',
+                mvp:'/api/transcribe/session/mvp',
+                reftext:'/api/transcribe/session/reftext',
+                vadchunked:'/api/transcribe/session/vadchunked'};
+  const label = PIPELINE_LABELS[mode] || mode;
+  txStatus(`Transcribing [${label}]… this may take 30–120 s depending on recording length.`, '#666');
+
+  fetch(URLS[mode], {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_txBuild(path))})
+  .then(r => r.json().then(d => ({ok: r.ok, d})))
+  .then(({ok, d}) => {
+    clearInterval(prog); _txProgress(false); _txDisable(false);
+    if (!ok) { txStatus(''); txErr((d.error||'Transcription failed')+(d.detail?'<br><small>'+d.detail+'</small>':'')); return; }
+    txStatus(`Done [${label}] — ${d.segments_transcribed} segments transcribed.`, '#388E3C');
+    renderTranscript(d);
+  })
+  .catch(e => { clearInterval(prog); _txProgress(false); _txDisable(false); txErr('Network error: '+e.message); });
+}
+
+function transcribeAll() {
+  const path = document.getElementById('sel-session').value;
+  if (!path) { txErr('Please select a session first.'); return; }
+  txErr('');
+  document.getElementById('tx-results').style.display = 'none';
+  document.getElementById('tx-all-results').style.display = 'none';
+  _txDisable(true);
+  const prog = _txProgress(true);
+  txStatus('Running all 8 pipelines in parallel… this may take 60–180 s.', '#666');
+
+  fetch('/api/transcribe/session/all', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_txBuild(path))})
+  .then(r => r.json().then(d => ({ok: r.ok, d})))
+  .then(({ok, d}) => {
+    clearInterval(prog); _txProgress(false); _txDisable(false);
+    if (!ok) { txStatus(''); txErr((d.error||'Failed')+(d.detail?'<br><small>'+d.detail+'</small>':'')); return; }
+    const n = PIPELINE_ORDER.filter(k => d[k] && !d[k].error).length;
+    const total = PIPELINE_ORDER.length;
+    let statusMsg = `All pipelines done — ${n}/${total} succeeded.`;
+    if (d._report_path) statusMsg += `  Report saved: <code>${d._report_path}</code>`;
+    if (d._report_warning) statusMsg += `  <span style="color:#F57C00">${d._report_warning}</span>`;
+    txStatus(statusMsg, n === total ? '#388E3C' : '#F57C00');
+    renderAllComparison(d);
+  })
+  .catch(e => { clearInterval(prog); _txProgress(false); _txDisable(false); txErr('Network error: '+e.message); });
+}
+
+function renderAllComparison(results) {
+  // Detect speaker names and ground-truth availability
+  let s1name = 'S1', s2name = 'S2', hasTruth = false;
+  for (const k of PIPELINE_ORDER) {
+    const r = results[k];
+    if (r && !r.error && r.evaluation) {
+      s1name   = r.evaluation.s1_speaker || r.evaluation.name_a || 'S1';
+      s2name   = r.evaluation.s2_speaker || r.evaluation.name_b || 'S2';
+      hasTruth = !!r.evaluation.ground_truth_available;
+      break;
+    }
+  }
+
+  const fmt = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const wc  = v => v == null ? '' : v < 0.20 ? 'good' : v < 0.45 ? 'warn' : 'bad';
+
+  // Find best pipeline per metric
+  const valid = PIPELINE_ORDER.filter(k => results[k] && !results[k].error &&
+    results[k].evaluation && results[k].evaluation.ground_truth_available);
+  const bestOf = getter => {
+    let bk = null, bv = Infinity;
+    valid.forEach(k => { const v = getter(results[k]); if (v != null && v < bv) { bv = v; bk = k; } });
+    return bk;
+  };
+  const bestOv = bestOf(r => (r.evaluation.overall || {}).wer);
+  const bestS1 = bestOf(r => (r.evaluation.speaker_a || {}).wer);
+  const bestS2 = bestOf(r => (r.evaluation.speaker_b || {}).wer);
+
+  // Build table
+  const werCell = (v, isBest) => {
+    const cls = [wc(v), isBest ? 'best' : ''].filter(Boolean).join(' ');
+    return `<td><span class="cmp-wer ${cls}">${fmt(v)}</span></td>`;
+  };
+  let rows = '';
+  for (const k of PIPELINE_ORDER) {
+    const r = results[k];
+    if (!r) continue;
+    if (r.error) {
+      rows += `<tr><td class="cmp-pl">${PIPELINE_LABELS[k]}</td><td colspan="6" class="cmp-err">${r.error}</td></tr>`;
+      continue;
+    }
+    const ev = r.evaluation || {}, ov = ev.overall || {}, sa = ev.speaker_a || {}, sb = ev.speaker_b || {};
+    rows += `<tr>
+      <td class="cmp-pl">${PIPELINE_LABELS[k]}</td>
+      ${hasTruth ? werCell(ov.wer, k===bestOv) + werCell(sa.wer, k===bestS1) + werCell(sb.wer, k===bestS2)
+                   + `<td><span class="cmp-wer ${wc(ev.cer_overall)}">${fmt(ev.cer_overall)}</span></td>` : ''}
+      <td>${r.segments_transcribed ?? '—'}</td>
+      <td class="cmp-note">${r.pipeline || ''}</td>
+    </tr>`;
+  }
+  const hdr = hasTruth
+    ? `<th>Pipeline</th><th>Overall WER</th><th>WER ${s1name}</th><th>WER ${s2name}</th><th>CER</th><th>Segs</th><th>Details</th>`
+    : `<th>Pipeline</th><th>Segs</th><th>Details</th>`;
+  document.getElementById('tx-all-table').innerHTML =
+    `<table class="cmp-table"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table>`;
+
+  // Insights
+  const insBox = document.getElementById('tx-insights');
+  insBox.innerHTML = '<h4>Insights</h4>' + generateInsights(results, s1name, s2name, bestOv, bestS1, bestS2, hasTruth);
+  insBox.style.display = 'block';
+
+  // Full transcripts (collapsible)
+  document.getElementById('tx-all-transcripts').innerHTML = PIPELINE_ORDER.map(k => {
+    const r = results[k];
+    if (!r || r.error) return '';
+    return `<div style="margin-bottom:20px">
+      <h4 style="font-size:.84rem;font-weight:700;margin-bottom:6px">${PIPELINE_LABELS[k]}</h4>
+      <pre class="tx-raw" style="max-height:220px">${(r.formatted||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+    </div>`;
+  }).join('');
+
+  document.getElementById('tx-all-results').style.display = 'block';
+  document.getElementById('tx-all-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function generateInsights(results, s1name, s2name, bestOv, bestS1, bestS2, hasTruth) {
+  const items = [];
+  const fmt = v => v != null ? (v * 100).toFixed(1) + '%' : null;
+  const row = (icon, cls, html) => `<div><span class="${cls}">${icon}</span> ${html}</div>`;
+
+  // ── Best pipelines ────────────────────────────────────────────────────────
+  if (hasTruth && bestOv) {
+    const wer = ((results[bestOv].evaluation || {}).overall || {}).wer;
+    items.push(row('★', 'i-good', `Best overall pipeline: <strong>${PIPELINE_LABELS[bestOv]}</strong> — WER ${fmt(wer)}`));
+  }
+  if (hasTruth && bestS1 && bestS1 !== bestOv) {
+    const wer = ((results[bestS1].evaluation || {}).speaker_a || {}).wer;
+    items.push(row('★', 'i-good', `Best for <strong>${s1name}</strong>: ${PIPELINE_LABELS[bestS1]} — WER ${fmt(wer)}`));
+  }
+  if (hasTruth && bestS2 && bestS2 !== bestOv) {
+    const wer = ((results[bestS2].evaluation || {}).speaker_b || {}).wer;
+    items.push(row('★', 'i-good', `Best for <strong>${s2name}</strong>: ${PIPELINE_LABELS[bestS2]} — WER ${fmt(wer)}`));
+  }
+
+  // ── Bleed measurement from adaptive pipeline ──────────────────────────────
+  const adpR = results['adaptive'];
+  if (adpR && !adpR.error && adpR.pipeline) {
+    const bleeds  = [...adpR.pipeline.matchAll(/bleed=(\d+)%/g)].map(m => parseInt(m[1]));
+    const usedParts = [...adpR.pipeline.matchAll(/used=(\S+)/g)].map(m => m[1]);
+    if (bleeds.length >= 2) {
+      const [b1, b2] = bleeds;
+      const f1 = usedParts[0] && usedParts[0].includes('forced');
+      const f2 = usedParts[1] && usedParts[1].includes('forced');
+      const high = b1 > 20 || b2 > 20;
+      items.push(row(high ? '⚠' : '✓', high ? 'i-warn' : 'i-info',
+        `Measured cross-channel bleed — ${s1name} mic: <strong>${b1}%</strong>${f1 ? ' (subtraction forced)' : ''}, ` +
+        `${s2name} mic: <strong>${b2}%</strong>${f2 ? ' (subtraction forced)' : ''}`));
+    }
+  }
+
+  // ── Insertion reduction: raw vs adaptive (bleed words) ───────────────────
+  const rawR = results['raw'];
+  if (rawR && !rawR.error && adpR && !adpR.error) {
+    for (const [skey, sname] of [['speaker_a', s1name], ['speaker_b', s2name]]) {
+      const rawIns = ((rawR.evaluation || {})[skey] || {}).insertions;
+      const adpIns = ((adpR.evaluation || {})[skey] || {}).insertions;
+      if (rawIns != null && adpIns != null) {
+        const diff = rawIns - adpIns;
+        if (diff >= 5)
+          items.push(row('✓', 'i-good',
+            `Bleed removal cut <strong>${sname}</strong> insertions by <strong>${diff}</strong> words (${rawIns} → ${adpIns} vs baseline)`));
+        else if (diff <= -5)
+          items.push(row('⚠', 'i-warn',
+            `Adaptive subtraction added ${-diff} extra words to ${sname} — over-subtraction artifact`));
+      }
+    }
+  }
+
+  // ── AEC vs raw ───────────────────────────────────────────────────────────
+  const aecR = results['aec'];
+  if (hasTruth && rawR && !rawR.error && aecR && !aecR.error) {
+    const rawWer = ((rawR.evaluation || {}).overall || {}).wer;
+    const aecWer = ((aecR.evaluation || {}).overall || {}).wer;
+    if (rawWer != null && aecWer != null) {
+      const delta = rawWer - aecWer;
+      if (delta > 0.03)
+        items.push(row('✓', 'i-good',
+          `AEC improved overall WER by <strong>${(delta*100).toFixed(1)} pp</strong> vs baseline — NLMS filter effective`));
+      else if (delta < -0.03)
+        items.push(row('⚠', 'i-warn',
+          `AEC worsened WER by ${(-delta*100).toFixed(1)} pp vs baseline — adaptive filter may have over-suppressed`));
+    }
+  }
+
+  // ── VAD gating effect on S1 ───────────────────────────────────────────────
+  const vadR = results['vad'];
+  if (rawR && !rawR.error && vadR && !vadR.error) {
+    if (hasTruth) {
+      const rawS1 = ((rawR.evaluation || {}).speaker_a || {}).wer;
+      const vadS1 = ((vadR.evaluation || {}).speaker_a || {}).wer;
+      if (rawS1 != null && vadS1 != null) {
+        const delta = rawS1 - vadS1;
+        if (delta > 0.05)
+          items.push(row('✓', 'i-good',
+            `VAD gating improved <strong>${s1name}</strong> WER by <strong>${(delta*100).toFixed(1)} pp</strong> — solo-frame isolation effective`));
+        else if (delta < -0.05)
+          items.push(row('⚠', 'i-warn',
+            `VAD gating worsened ${s1name} WER by ${(-delta*100).toFixed(1)} pp — gating may be discarding valid speech`));
+      }
+    }
+    if (vadR.pipeline) {
+      const m = vadR.pipeline.match(/(\d+) bleed words removed/);
+      if (m) {
+        const n = parseInt(m[1]);
+        items.push(row(n > 10 ? '✓' : '•', n > 10 ? 'i-good' : 'i-info',
+          `VAD text-diff removed <strong>${n}</strong> bleed words from ${s2name}'s transcript`));
+      }
+    }
+  }
+
+  // ── Speaker WER consistency / imbalance ──────────────────────────────────
+  if (hasTruth) {
+    const s1wers = PIPELINE_ORDER.map(k => results[k] && !results[k].error
+      ? ((results[k].evaluation || {}).speaker_a || {}).wer : null).filter(v => v != null);
+    const s2wers = PIPELINE_ORDER.map(k => results[k] && !results[k].error
+      ? ((results[k].evaluation || {}).speaker_b || {}).wer : null).filter(v => v != null);
+    const s1min = s1wers.length ? Math.min(...s1wers) : null;
+    const s2min = s2wers.length ? Math.min(...s2wers) : null;
+
+    if (s1min != null && s1min > 0.40)
+      items.push(row('⚠', 'i-warn',
+        `<strong>${s1name}</strong> has high WER across all pipelines (best: ${fmt(s1min)}) — ` +
+        `consider microphone placement or check for recording artefacts`));
+    if (s2min != null && s2min > 0.40)
+      items.push(row('⚠', 'i-warn',
+        `<strong>${s2name}</strong> has high WER across all pipelines (best: ${fmt(s2min)})`));
+
+    if (s1min != null && s2min != null && Math.abs(s1min - s2min) > 0.25) {
+      const worse  = s1min > s2min ? s1name : s2name;
+      const better = s1min > s2min ? s2name : s1name;
+      items.push(row('ℹ', 'i-info',
+        `Speaker imbalance: <strong>${worse}</strong> consistently has much higher WER than ${better} ` +
+        `— likely a recording quality difference between the two channels`));
+    }
+
+    // Range of WER across pipelines — show spread
+    if (s1wers.length > 1) {
+      const spread = ((Math.max(...s1wers) - s1min) * 100).toFixed(1);
+      if (parseFloat(spread) > 10)
+        items.push(row('ℹ', 'i-info',
+          `${s1name} WER spreads <strong>${spread} pp</strong> across pipelines — pipeline choice matters significantly for this speaker`));
+    }
+  }
+
+  // ── No ground truth ───────────────────────────────────────────────────────
+  if (!hasTruth) {
+    items.push(row('ℹ', 'i-info',
+      'No ground-truth file found — WER comparison unavailable. ' +
+      'Add a <code>ground_truth.txt</code> file to the session directory to enable quality metrics.'));
+    const segLine = PIPELINE_ORDER.map(k => {
+      const r = results[k];
+      return r && !r.error ? `${PIPELINE_LABELS[k]}: ${r.segments_transcribed} segs` : null;
+    }).filter(Boolean).join(' &nbsp;|&nbsp; ');
+    if (segLine) items.push(row('•', 'i-info', 'Segment counts — ' + segLine));
+  }
+
+  // ── Pipeline errors ───────────────────────────────────────────────────────
+  PIPELINE_ORDER.forEach(k => {
+    if (results[k] && results[k].error)
+      items.push(row('✗', 'i-warn', `${PIPELINE_LABELS[k]} failed: ${results[k].error}`));
+  });
+
+  return items.join('');
+}
+
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function renderTranscript(d) {
+  const out = document.getElementById('tx-out');
+  out.innerHTML = '';
+  const lines = d.transcript || [];
+
+  // Group simultaneous lines together
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.simultaneous) {
+      // Collect all lines with the same start time
+      const group = [line];
+      let j = i + 1;
+      while (j < lines.length && lines[j].simultaneous && Math.abs(lines[j].start - line.start) < 0.1) {
+        group.push(lines[j++]);
+      }
+      let html = `<div class="tx-sim"><div class="tx-sim-lbl">⟨ simultaneous — ${fmtTime(line.start)} ⟩</div>`;
+      for (const g of group) {
+        const cls = g.speaker === 'A' ? 'tx-a' : 'tx-b';
+        html += `<div class="tx-line"><span class="${cls}">Speaker ${g.speaker}:</span> "${g.text}"</div>`;
+      }
+      out.innerHTML += html + '</div>';
+      i = j;
+    } else {
+      const cls = line.speaker === 'A' ? 'tx-a' : 'tx-b';
+      out.innerHTML += `<div class="tx-line"><span class="tx-time">[${fmtTime(line.start)}]</span><span class="${cls}">Speaker ${line.speaker}:</span> "${line.text}"</div>`;
+      i++;
+    }
+  }
+
+  document.getElementById('tx-raw').textContent = d.formatted || '';
+
+  // Ground-truth evaluation
+  const ev = d.evaluation || {};
+  const evSec = document.getElementById('ev-section');
+  if (ev.ground_truth_available) {
+    const fmt = (v, decimals=1) => v != null ? (v*100).toFixed(decimals)+'%' : 'N/A';
+    const cls = v => v == null ? '' : v < 0.20 ? 'good' : v < 0.45 ? 'warn' : 'bad';
+    const ov = ev.overall || {}, sa = ev.speaker_a || {}, sb = ev.speaker_b || {};
+    const s1 = ev.s1_speaker || ev.name_a, s2 = ev.s2_speaker || ev.name_b;
+    const swapped = s1 !== ev.name_a;
+    const noticeEl = document.getElementById('ev-notice');
+    noticeEl.style.color = swapped ? '#E65100' : '#388E3C';
+    noticeEl.textContent = (swapped ? '⚠ ' : '✓ ') +
+      `Detected speaker assignment: S1 = ${s1}, S2 = ${s2}` +
+      (swapped ? ' (auto-swapped from alphabetical default)' : '');
+    document.getElementById('ev-metrics').innerHTML = [
+      ['Overall WER',            ov.wer,         cls(ov.wer)],
+      [`WER — ${s1} (S1)`,       sa.wer,         cls(sa.wer)],
+      [`WER — ${s2} (S2)`,       sb.wer,         cls(sb.wer)],
+      ['CER',                    ev.cer_overall,  cls(ev.cer_overall)],
+      ['Ref words',              null, ''],
+      ['Hyp words',              null, ''],
+    ].map(([lbl, v, c], i) => {
+      const display = i === 4 ? ov.ref_words : i === 5 ? ov.hyp_words : fmt(v);
+      return `<div class="ev-metric"><div class="lbl">${lbl}</div><div class="val ${c}">${display??'N/A'}</div></div>`;
+    }).join('');
+    const diffLegend = `<div style="font-size:.75rem;color:#555;margin-bottom:6px">` +
+      `<span class="ev-ok">correct</span> &nbsp;` +
+      `<span class="ev-ins">{extra}</span> = said but not expected &nbsp;` +
+      `<span class="ev-del">[missing]</span> = expected but not said &nbsp;` +
+      `<span class="ev-sub">said</span><span class="ev-del">[expected]</span> = substitution` +
+      `</div>`;
+    document.getElementById('ev-diff-a').innerHTML =
+      `<h4>${s1} (S1)</h4>` + diffLegend + (sa.diff_html || '(no data)');
+    document.getElementById('ev-diff-b').innerHTML =
+      `<h4>${s2} (S2)</h4>` + diffLegend + (sb.diff_html || '(no data)');
+
+    // Plain-text copy block
+    const plain = [
+      `=== Ground-Truth Comparison ===`,
+      `Pipeline: ${d.pipeline || 'unknown'}`,
+      `Speaker assignment: S1 = ${s1}, S2 = ${s2}${swapped ? ' (auto-detected)' : ''}`,
+      ``,
+      `Legend: [MISSING: word] = expected but not said  |  {EXTRA: word} = said but not expected`,
+      `        substitutions shown as: said_word [MISSING: expected_word]`,
+      ``,
+      `Overall WER : ${fmt(ov.wer)}   CER: ${fmt(ev.cer_overall)}`,
+      `Ref words   : ${ov.ref_words ?? 'N/A'}   Hyp words: ${ov.hyp_words ?? 'N/A'}`,
+      ``,
+      `WER ${s1} (S1) : ${fmt(sa.wer)}  (${sa.substitutions ?? 0} sub / ${sa.deletions ?? 0} del / ${sa.insertions ?? 0} ins)`,
+      `WER ${s2} (S2) : ${fmt(sb.wer)}  (${sb.substitutions ?? 0} sub / ${sb.deletions ?? 0} del / ${sb.insertions ?? 0} ins)`,
+      ``,
+      `--- ${s1} (S1) transcript with annotations ---`,
+      (sa.diff_plain || (sa.diff_html || '').replace(/<[^>]+>/g, '')).trim(),
+      ``,
+      `--- ${s2} (S2) transcript with annotations ---`,
+      (sb.diff_plain || (sb.diff_html || '').replace(/<[^>]+>/g, '')).trim(),
+    ].join('\\n');
+    document.getElementById('ev-plain').textContent = plain;
+    evSec.style.display = 'block';
+  } else {
+    evSec.style.display = 'none';
+  }
+
+  document.getElementById('tx-results').style.display = 'block';
+  out.scrollTop = 0;
+}
+</script>
+</body>
+</html>
